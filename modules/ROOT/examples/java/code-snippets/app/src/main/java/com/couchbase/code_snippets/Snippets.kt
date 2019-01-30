@@ -55,13 +55,74 @@ class Snippets(context: Context) {
         val replicator = Replicator(replConfig)
         // LOG TEST added:
         Log.i(TAG, "replicator before change is like: " + replicator.toString())
+		
+		class ReplicatorChangeListenerAdapter: ReplicatorChangeListener{
+			override fun changed(change: ReplicatorChange){
+				if(change.status.error != null)
+					Log.i(TAG, "Error code :: " + change.status.error.code)
+			}
+		}
+		
+		replicator.addChangeListener(ReplicatorChangeListenerAdapter())
+		
+		// Start replication
+		replicator.start()
+		
         // end::getting-started[]
+        database.delete()
     }
 
+    // ### New Database
+    @Throws(CouchbaseLiteException::class)
     fun testNewDatabase() {
-        // etc
+        // tag::new-database[]
+        val config = DatabaseConfiguration(getApplicationContext())
+        val database = Database("my-database", config)
+        // end::new-database[]
+
+        database.delete()
     }
 
-    // etc
+    // ### Database Encryption
+    @Throws(CouchbaseLiteException::class)
+    fun testDatabaseEncryption() {
+        // tag::database-encryption[]
+        val config = DatabaseConfiguration(getApplicationContext());
+        config.encryptionKey = EncryptionKey("PASSWORD");
+        val database = Database("mydb", config);
+        // end::database-encryption[]
+    }
+
+    // ### Logging
+    @Throws(CouchbaseLiteException::class)
+    fun testLogging() {
+        // tag::logging[]
+        Database.setLogLevel(LogDomain.REPLICATOR, LogLevel.VERBOSE);
+        Database.setLogLevel(LogDomain.QUERY, LogLevel.VERBOSE);
+        // end::logging[]
+    }
+
+    // ### Loading a pre-built database
+    @Throws(IOException::class)
+    fun testPreBuiltDatabase() {
+        // tag::prebuilt-database[]
+        // Note: Getting the path to a database is platform-specific.
+        // For Android you need to extract it from your
+        // assets to a temporary directory and then pass that path to Database.copy()
+        val context = getApplicationContext()
+        val configuration = DatabaseConfiguration(context)
+        if (!Database.exists("travel-sample", context.getFilesDir())) {
+            ZipUtils.unzip(getAsset("travel-sample.cblite2.zip"), getApplicationContext().getFilesDir())
+            val path = File(getApplicationContext().getFilesDir(), "travel-sample")
+            try {
+                Database.copy(path, "travel-sample", configuration)
+            } catch (e: CouchbaseLiteException) {
+                e.printStackTrace()
+            }
+
+        }
+        // end::prebuilt-database[]
+    }
+
 
 }
