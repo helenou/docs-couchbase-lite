@@ -4,6 +4,8 @@ import android.content.Context
 import android.util.Log
 import com.couchbase.lite.*
 import java.net.URI
+import kotlinx.android.synthetic.main.*
+
 
 class Snippets(context: Context) {
 
@@ -45,7 +47,6 @@ class Snippets(context: Context) {
 
         var replConfig = ReplicatorConfiguration(database, targetEndpoint)
         replConfig.replicatorType = ReplicatorConfiguration.ReplicatorType.PUSH_AND_PULL
-        //replConfig.setReplicatorType(ReplicatorConfiguration.ReplicatorType.PUSH_AND_PULL)
 
         // Add authentication.
         replConfig.authenticator = BasicAuthenticator("john", "pass")
@@ -62,21 +63,58 @@ class Snippets(context: Context) {
 					Log.i(TAG, "Error code :: " + change.status.error.code)
 			}
 		}
-		
 		replicator.addChangeListener(ReplicatorChangeListenerAdapter())
 		
 		// Start replication
 		replicator.start()
+//        replicator.stop()
 		
         // end::getting-started[]
         database.delete()
+    }
+
+    @Throws(CouchbaseLiteException::class, IOException::class)
+    fun test1xAttachments() {
+        // if db exist, delete it
+        deleteDB("android-sqlite", applicationContext.filesDir)
+
+        ZipUtils.unzip(getAsset("replacedb/android140-sqlite.cblite2.zip"), getApplicationContext().getFilesDir())
+
+        val db = Database("android-sqlite", DatabaseConfiguration(getApplicationContext()))
+        try {
+
+            val doc = db.getDocument("doc1")
+
+            // For Validation
+            val attachments = doc.getDictionary("_attachments")
+            val blob = attachments.getBlob("attach1")
+            val content = blob.getContent()
+            // For Validation
+
+            val attach = String.format(Locale.ENGLISH, "attach1").toByteArray()
+            Arrays.equals(attach, content)
+
+        } finally {
+            // close db
+            db.close()
+            // if db exist, delete it
+            deleteDB("android-sqlite", getApplicationContext().getFilesDir())
+        }
+
+        val document = MutableDocument()
+
+        // tag::1x-attachment[]
+        val attachments = document.getDictionary("_attachments")
+        val blob = if (attachments != null) attachments!!.getBlob("avatar") else null
+        val content = if (blob != null) blob!!.getContent() else null
+        // end::1x-attachment[]
     }
 
     // ### New Database
     @Throws(CouchbaseLiteException::class)
     fun testNewDatabase() {
         // tag::new-database[]
-        val config = DatabaseConfiguration(getApplicationContext())
+        val config = DatabaseConfiguration(applicationContext)
         val database = Database("my-database", config)
         // end::new-database[]
 
@@ -87,7 +125,7 @@ class Snippets(context: Context) {
     @Throws(CouchbaseLiteException::class)
     fun testDatabaseEncryption() {
         // tag::database-encryption[]
-        val config = DatabaseConfiguration(getApplicationContext());
+        val config = DatabaseConfiguration(applicationContext);
         config.encryptionKey = EncryptionKey("PASSWORD");
         val database = Database("mydb", config);
         // end::database-encryption[]
@@ -109,11 +147,11 @@ class Snippets(context: Context) {
         // Note: Getting the path to a database is platform-specific.
         // For Android you need to extract it from your
         // assets to a temporary directory and then pass that path to Database.copy()
-        val context = getApplicationContext()
+        val context = applicationContext
         val configuration = DatabaseConfiguration(context)
-        if (!Database.exists("travel-sample", context.getFilesDir())) {
-            ZipUtils.unzip(getAsset("travel-sample.cblite2.zip"), getApplicationContext().getFilesDir())
-            val path = File(getApplicationContext().getFilesDir(), "travel-sample")
+        if (!Database.exists("travel-sample", context.filesDir)) {
+            ZipUtils.unzip(assets.open("travel-sample.cblite2.zip"), applicationContext.filesDir)
+            val path = File(applicationContext.filesDir, "travel-sample")
             try {
                 Database.copy(path, "travel-sample", configuration)
             } catch (e: CouchbaseLiteException) {
@@ -122,6 +160,34 @@ class Snippets(context: Context) {
 
         }
         // end::prebuilt-database[]
+    }
+
+    // helper methods
+
+    // if db exist, delete it
+    @Throws(CouchbaseLiteException::class)
+    private fun deleteDB(name: String, dir: File) {
+        // database exist, delete it
+        if (Database.exists(name, dir)) {
+            // sometimes, db is still in used, wait for a while. Maximum 3 sec
+            for (i in 0..9) {
+                try {
+                    Database.delete(name, dir)
+                    break
+                } catch (ex: CouchbaseLiteException) {
+                    if (ex.code === CBLErrorBusy) {
+                        try {
+                            Thread.sleep(300)
+                        } catch (e: Exception) {
+                        }
+
+                    } else {
+                        throw ex
+                    }
+                }
+
+            }
+        }
     }
 
 
